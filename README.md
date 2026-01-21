@@ -53,7 +53,6 @@ Telegram_TinderBot/
    ```bash
    python -m venv venv
 
-   (Активация из консолей, если не используется IDE)
    source venv/bin/activate  # Для Linux/Mac
    venv\Scripts\activate     # Для Windows
    ```
