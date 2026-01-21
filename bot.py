@@ -1,3 +1,4 @@
+# Импорт необходимых библиотек
 from telegram.ext import (
     ApplicationBuilder,
     MessageHandler,
@@ -5,18 +6,27 @@ from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
 )
-
+# Импорт пользовательских модулей
 from gpt import *
 from util import *
 
-from api_keys import * #файл api_keys.py содержит две переменные с api-токенами telegram, chatgpt
+# Модуль api_keys.py содержит две переменные с api-ключами telegram, chatgpt
+from api_keys import * 
 
+# В коде используется асинхронный подход в соответствии с документацией библиотеки python-telegram-bot
 
+# Обработчик команды /start - стартовое сообщение и главное меню бота
 async def command_start(update, context):
+
+    # установка атрибута экземпляра класса Dialog() на главное меню
+    # далее dialog.mode будет использоваться для определения текущего состояния диалога с пользователем
     dialog.mode = "main"
-    text = load_message("main")
-    await send_photo(update, context, "main")
-    await send_text(update, context, text)
+
+    text = load_message("main")# загрузка текста главного меню из файла messages/main.txt
+    await send_photo(update, context, "main")# отправка фото главного меню
+    await send_text(update, context, text)# отправка текста главного меню
+
+    # вызов функции show_main_menu() для отображения кнопок главного меню в левом нижнем углу чата
     await show_main_menu(
         update,
         context,
@@ -30,14 +40,18 @@ async def command_start(update, context):
         },
     )
 
-
+# Обработчик команды /gpt - режим общения с чат-ботом GPT
+# Реализовано аналогично функции command_start, как и другие команды ниже
 async def gpt(update, context):
     dialog.mode = "gpt"
     text = load_message("gpt")
     await send_photo(update, context, "gpt")
     await send_text(update, context, text)
 
-
+# Реализация общения без контекста с chatGPT
+# gpt_dialog() вызывается из функции mode() после отправки пользователем текстового сообщения с учетом dialog.mode
+# Такой подход реализован для всех остальных режимов бота,
+# таким образом все текстовые сообщения пользователя обрабатываются одной функцией mode
 async def gpt_dialog(update, context):
 
     text = update.message.text
@@ -45,11 +59,14 @@ async def gpt_dialog(update, context):
     answer = await chatgpt.send_question(prompt, text)
     await send_text(update, context, answer)
 
-
+# Обработчик команды /date режима переписки со звездами
+# После отправки сообщения с информацией о режиме пользователю предлагается выбрать знаменитость
 async def date(update, context):
     dialog.mode = "date"
     text = load_message("date")
     await send_photo(update, context, "date")
+
+    # отправка кнопок для выбора знаменитости
     await send_text_buttons(
         update,
         context,
@@ -63,32 +80,46 @@ async def date(update, context):
         },
     )
 
-
-async def date_dialog(update, context):
-
-    text = update.message.text
-    my_message = await send_text(update, context, "Собеседник набирает текст...")
-    answer = await chatgpt.add_message(text)
-    await my_message.edit_text(answer)
-
-
+# Обработчик нажатий кнопок выбора знаменитости в режиме /date
+# После нажатия кнопки, отправленной пользователю в функции date(),
+# Telegram отправляет соответствующий CallbackQuery ("date_..."), который обрабатывается этой функцией
+# Вызов функции date_button() происходит при помощи регистратора обработчиков app.add_handler(CallbackQueryHandler...)
 async def date_button(update, context):
-    query = update.callback_query.data
+    query = update.callback_query.data # сохраняем соответствующий CallbackQuery "date_..."
     await update.callback_query.answer()
-    await send_photo(update, context, query)
+    await send_photo(update, context, query)# отправка фото выбранной знаменитости
     await send_text(
         update,
         context,
         "Отличный выбор! Пригласите девушку (парня) на свидание за 5 сообщений",
     )
+    # в зависимости от выбора пользователя загружается соответствующий prompt для chatGPT
     prompt = load_prompt(query)
     chatgpt.set_prompt(prompt)
 
+# Обработчик текстовых сообщений в режиме /date
+# После выбора /date пользователем все последующие текстовые сообщения пользователя
+# отправляются из функции mode() в эту функцию для обработки в соответствии с dialog.mode = "date"
+async def date_dialog(update, context):
+    # получение текста сообщения пользователя
+    text = update.message.text
 
+    # отправка сообщения "Собеседник набирает текст..." до получения ответа от chatGPT
+    # чтобы пользователь видел, что бот обрабатывает его запрос
+    my_message = await send_text(update, context, "Собеседник набирает текст...")
+    
+    # получение ответа от chatGPT с учетом предыдущего контекста диалога
+    answer = await chatgpt.add_message(text)
+    # редактирование ранее отправленного сообщения с новым текстом ответа от chatGPT
+    await my_message.edit_text(answer)
+
+# Обработчик команды /message - режим переписки от вашего имени
+# После отправки сообщения с информацией о режиме пользователю предлагается выбрать тип сообщения
 async def message(update, context):
     dialog.mode = "message"
     text = load_message("message")
     await send_photo(update, context, "message")
+    # Реализация кнопок выполнена аналогично команде /date
     await send_text_buttons(
         update,
         context,
@@ -100,42 +131,65 @@ async def message(update, context):
     )
     dialog.list.clear()
 
-
+# Обработчик нажатий кнопок выбора типа сообщения в режиме /message
+# После нажатия кнопки, отправленной пользователю в функции message(),
+# Telegram отправляет соответствующий CallbackQuery ("message_..."), который обрабатывается этой функцией
+# Вызов функции message_button() происходит при помощи регистратора обработчиков app.add_handler(CallbackQueryHandler...)
 async def message_button(update, context):
     query = update.callback_query.data
     await update.callback_query.answer()
 
+    # загрузка соответствующего prompt для chatGPT в зависимости от выбора пользователя
     prompt = load_prompt(query)
+    # добавление пересланной пользователем переписки в контекст диалога с ChatGPT
     user_chat_history = "\n\n".join(dialog.list)
 
+    # отправка сообщения "ChatGPT думает над вариантами ответа..." до получения ответа от chatGPT
+    # чтобы пользователь видел, что бот обрабатывает его запрос
     my_messge = await send_text(
         update, context, "ChatGPT думает над вариантами ответа..."
     )
+    # получение ответа от chatGPT с учетом предыдущего контекста диалога
     answer = await chatgpt.send_question(prompt, user_chat_history)
-
+    # редактирование ранее отправленного сообщения с новым текстом ответа от chatGPT
     await my_messge.edit_text(answer)
 
-
+# Обработчик текстовых сообщений в режиме /message
+# После выбора /message пользователем все последующие текстовые сообщения пользователя
+# отправляются из функции mode() в эту функцию для обработки в соответствии с dialog.mode = "message"
 async def message_dialog(update, context):
+    # получение текста сообщения пользователя
     text = update.message.text
+
+    # добавление текста сообщения пользователя в список dialog.list
+    # этот список будет использоваться для формирования контекста диалога с chatGPT
     dialog.list.append(text)
 
-
+# Реализация режима /profile - генерация Tinder-профиля
+# После отправки сообщения с информацией о режиме пользователю предлагается ответить на 7 вопросов
 async def profile(update, context):
     dialog.mode = "profile"
     text = load_message("profile")
     await send_photo(update, context, "profile")
     await send_text(update, context, text)
 
+    # очистка ранее введенных данных пользователя
     dialog.user.clear()
+    # счетчик вопросов для последовательного опроса пользователя
     dialog.counter = 0
+    # первый вопрос пользователю
     await send_text(update, context, "Ваше имя?")
 
-
+# Обработчик текстовых сообщений в режиме /profile
+# После выбора /profile пользователем все последующие текстовые сообщения пользователя
+# отправляются из функции mode() в эту функцию для обработки в соответствии с dialog.mode = "profile"
 async def profile_dialog(update, context):
     text = update.message.text
+    # увеличение счетчика вопросов в соответствии с ответом на вопрос 
+    # заданного пользователю в profile()
     dialog.counter += 1
 
+    # последовательный опрос пользователя с сохранением ответов в словарь dialog.user
     if dialog.counter == 1:
         dialog.user["age"] = text
         await send_text(update, context, "Кем Вы работаете")
@@ -151,13 +205,23 @@ async def profile_dialog(update, context):
     elif dialog.counter == 5:
         dialog.user["goals"] = text
 
+        # загрузка prompt для chatGPT в соответствии с информацией, собранной от пользователя
         prompt = load_prompt("profile")
+        # преобразование словаря dialog.user в строку для передачи в chatGPT
         user_info = dialog_user_info_to_str(dialog.user)
 
+        # отправка сообщения "Происходит генерация профиля..." до получения ответа от chatGPT
+        # чтобы пользователь видел, что бот обрабатывает его запрос
         my_message = await send_text(update, context, "Происходит генерация профиля...")
+
+        # получение ответа от chatGPT с учетом информации, собранной от пользователя
         answer = await chatgpt.send_question(prompt, user_info)
+        # редактирование ранее отправленного сообщения с новым текстом ответа от chatGPT
         await my_message.edit_text(answer)
 
+# Обработчик команды /opener - режим генерации первого сообщения для знакомства
+# После отправки сообщения с информацией о режиме пользователю предлагается ответить на 5 вопросов,
+# Функция реализована аналогично функции profile()
 async def opener(update, context):
     dialog.mode = "opener"
     text = load_message("opener")
@@ -168,7 +232,8 @@ async def opener(update, context):
     dialog.counter = 0
     await send_text(update, context, "Имя девушки?")
 
-
+# Обработчик текстовых сообщений в режиме /opener
+# Функция реализована аналогично функции profile_dialog()
 async def opener_dialog(update, context):
     text = update.message.text
     dialog.counter += 1
@@ -197,8 +262,13 @@ async def opener_dialog(update, context):
         answer = await chatgpt.send_question(prompt, user_info)
         await my_message.edit_text(answer)
 
-
-async def hello(update, context):
+# Основной обработчик текстовых сообщений пользователя
+# Все текстовые сообщения пользователя, которые не являются командами,
+# обрабатываются этой функцией mode()
+# В зависимости от текущего состояния диалога dialog.mode, значение которого
+# устанавливается в соответствующих обработчиках команд выше,
+# вызывается соответствующая функция для обработки сообщения
+async def mode(update, context):
     if dialog.mode == "gpt":
         await gpt_dialog(update, context)
     if dialog.mode == "date":
@@ -209,21 +279,34 @@ async def hello(update, context):
         await profile_dialog(update, context)
     if dialog.mode == "opener":
         await opener_dialog(update, context)
-    
+
+# Создание экземпляра класса Dialog для хранения состояния диалога с пользователем
 dialog = Dialog()
+# Инициализация атрибутов экземпляра класса Dialog
+# Атрибуты задаются здесь, а не конструктором, для явного понимания структуры класса Dialog
+
+# текущий режим диалога
 dialog.mode = None
+# список сообщений для режима /message
 dialog.list = []
+# счетчик вопросов для режима /profile и /opener
 dialog.counter = 0
+# словарь для хранения ответов пользователя в режиме /profile и /opener
 dialog.user = {}
 
+# Создание экземпляра ChatGptService с использованием api-ключа chatGPT из api_keys.py
 chatgpt = ChatGptService(
     token=chat_gpt_key
 )
 
+# Создание экземпляра бота с использованием api-ключа Telegram из api_keys.py
 app = (
     ApplicationBuilder().token(telegram_key).build()
 )
 
+# Регистрация обработчиков команд и сообщений бота
+
+# Обработчики команд
 app.add_handler(CommandHandler("start", command_start))
 app.add_handler(CommandHandler("gpt", gpt))
 app.add_handler(CommandHandler("date", date))
@@ -231,10 +314,12 @@ app.add_handler(CommandHandler("message", message))
 app.add_handler(CommandHandler("profile", profile))
 app.add_handler(CommandHandler("opener", opener))
 
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, hello))
+# Обработчик текстовых сообщений
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, mode))
 
+# Обработчики нажатий кнопок
 app.add_handler(CallbackQueryHandler(date_button, pattern="^date_.*"))
 app.add_handler(CallbackQueryHandler(message_button, pattern="^message_.*"))
 
-
+# запуск бота
 app.run_polling()
